@@ -1,7 +1,10 @@
-import obspython as obs
+import obspython as obs #type: ignore
 import socket
+import psutil
 
 s = None
+game_executable = "hl2.exe"
+game_is_active = False
 
 # It needs for protecting OBS from stopping if something wrong with socket connection
 def connect():
@@ -24,10 +27,10 @@ def start_recording():
         connect()
         return
     try:
-        s.send(b"getsplitindex\r\n")
-        split_index = s.recv(128).decode().strip("\n")
-        # That if statement needs some improvements
-        if split_index >= "0":
+        s.send(b"getcurrenttimerphase\r\n")
+        timer_phase = s.recv(128).decode().strip("\n")
+        # Nice!
+        if timer_phase == "Running":
             obs.obs_frontend_recording_start()
             print("Recording started") 
     except BlockingIOError:
@@ -37,11 +40,27 @@ def start_recording():
         print("Reseting socket connection") 
         s = None
 
+# Check game running state
+def game_state_check(game_exec_local):
+    is_active = False
+
+    for proc in psutil.process_iter(['pid', 'name', 'username']):
+        if proc.info['name'] == game_exec_local:
+            is_active = True
+            break
+        is_active = False
+    
+    return is_active
+
 # A update function every tick
 def script_tick(seconds):
     is_recording = obs.obs_frontend_recording_active()
-    if not is_recording:
+    is_game_active = game_state_check(game_executable)
+
+    if not is_recording and is_game_active:
         start_recording()
+    elif is_recording and not is_game_active:
+        obs.obs_frontend_recording_stop()
 
 def script_load(settings):
     connect()
