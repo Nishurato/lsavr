@@ -4,7 +4,7 @@ import psutil
 
 s = None
 game_executable = "hl2.exe"
-game_is_active = False
+timer_interval_ms = 200
 
 # It needs for protecting OBS from stopping if something wrong with socket connection
 def connect():
@@ -19,7 +19,7 @@ def connect():
         s = None
         print("Failed to connect to the LiveSplit local server")
 
-def start_recording():
+def timer_state_check():
     global s
     
     if s is None:
@@ -28,11 +28,7 @@ def start_recording():
         return
     try:
         s.send(b"getcurrenttimerphase\r\n")
-        timer_phase = s.recv(128).decode().strip("\n")
-        # Nice!
-        if timer_phase == "Running":
-            obs.obs_frontend_recording_start()
-            print("Recording started") 
+        return s.recv(128).decode().strip("\n")
     except BlockingIOError:
         # Don't stop OBS
         pass
@@ -40,20 +36,21 @@ def start_recording():
         print("Reseting socket connection") 
         s = None
 
+def start_recording():
+    timer_phase = timer_state_check()
+    if timer_phase == "Running":
+            obs.obs_frontend_recording_start()
+            print("Recording started") 
+
 # Check game running state
 def game_state_check(game_exec_local):
-    is_active = False
-
     for proc in psutil.process_iter(['pid', 'name', 'username']):
         if proc.info['name'] == game_exec_local:
-            is_active = True
-            break
-        is_active = False
-    
-    return is_active
+            return True
+    return False
 
 # A update function every tick
-def script_tick(seconds):
+def check_recording_state():
     is_recording = obs.obs_frontend_recording_active()
     is_game_active = game_state_check(game_executable)
 
@@ -64,6 +61,8 @@ def script_tick(seconds):
 
 def script_load(settings):
     connect()
+    # We need save PC resources
+    obs.timer_add(check_recording_state, timer_interval_ms)  
 
 def script_unload():
     global s
