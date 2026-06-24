@@ -1,4 +1,4 @@
-# Speedrun Autorecord Tool
+# LiveSplit Auto Video Recorder
 
 This is a script for OBS working with LiveSplit commands. It still in development state.
 
